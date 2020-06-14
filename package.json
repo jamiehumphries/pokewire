@@ -1,0 +1,12 @@
+{
+  "name": "pokewire",
+  "version": "1.0.0",
+  "description": "Pokémon catching Discord bot.",
+  "private": true,
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "12.2.0",
+    "lodash": "4.17.15",
+    "pokemon": "2.0.2"
+  }
+}
