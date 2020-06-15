@@ -1,4 +1,7 @@
 const Discord = require('discord.js')
+const firebase = require('firebase/app').default
+require('firebase/auth')
+require('firebase/firestore')
 const _ = require('lodash')
 const pkm = require('pokemon')
 
@@ -7,14 +10,27 @@ const { getSpriteURL } = require('./sprites')
 
 const client = new Discord.Client()
 
-const CATCH_KEYWORD = process.env.CATCH_KEYWORD || 'catch'
-const DEX_KEYWORD = process.env.DEX_KEYWORD || 'dex'
-const SPAWN_CHANNEL = process.env.SPAWN_CHANNEL || 'pokemon-dungeon'
+const CATCH_KEYWORD = 'catch'
+const DEX_KEYWORD = 'dex'
+const SPAWN_CHANNEL = 'pokemon-dungeon'
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
 const MAX_ID = +process.env.MAX_ID || 151
 
 const pokédexes = {}
 let currentSpawn = null
+
+firebase.initializeApp({
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: 'pokewire-db.firebaseapp.com',
+  databaseURL: 'https://pokewire-db.firebaseio.com',
+  projectId: 'pokewire-db',
+  storageBucket: 'pokewire-db.appspot.com',
+  messagingSenderId: '890801480396',
+  appId: '1:890801480396:web:ba9ffd2d6e7eec5edb5869'
+})
+firebase.auth().signInAnonymously()
+
+const db = firebase.firestore()
 
 client.on('message', message => {
   if (message.author.id === client.user.id) {
@@ -45,50 +61,56 @@ function isPokédexRequest (message) {
 }
 
 function sendPokédex (message) {
-  const matcher = new RegExp(`^${DEX_KEYWORD} p(\\d+)$`)
-  const pageMatch = matcher.exec(message.content)
-  const page = pageMatch === null ? 1 : parseInt(pageMatch[1])
   const { author } = message
-  const pokédex = pokédexes[author.id]
-  if (!pokédex) {
-    message.reply('you haven’t caught any Pokémon yet!')
-    return
-  }
-  const caught = pokédex.filter(entry => entry.caught > 0).length
-  const totalPages = Math.ceil(MAX_ID / 10)
-  let content = `**<@${author.id}>’s Pokédex** (page ${page} of ${totalPages})\n` +
-    `**Caught: ${caught} / ${MAX_ID}**\n\n`
-  for (let i = 1; i <= 10; i++) {
-    const id = (page - 1) * 10 + i
-    if (id > MAX_ID) {
-      break
+  const dex = db.collection('pokedexes').doc(author.id).collection('entries')
+  dex.get().then(snapshot => {
+    if (snapshot.empty) {
+      message.reply('you haven’t caught any Pokémon yet!')
+      return
     }
-    let paddedID = id.toString()
-    while (paddedID.length < 3) {
-      paddedID = '0' + paddedID
+    const matcher = new RegExp(`^${DEX_KEYWORD} p(\\d+)$`)
+    const pageMatch = matcher.exec(message.content)
+    const page = pageMatch === null ? 1 : parseInt(pageMatch[1])
+    const pokédex = new Array(1000).fill(undefined).map(() => emptyEntry())
+    snapshot.forEach(doc => {
+      pokédex[parseInt(doc.id)] = doc.data()
+    })
+    const caught = pokédex.filter(entry => entry.caught > 0).length
+    const totalPages = Math.ceil(MAX_ID / 10)
+    let content = `**<@${author.id}>’s Pokédex** (page ${page} of ${totalPages})\n` +
+      `**Caught: ${caught} / ${MAX_ID}**\n\n`
+    for (let i = 1; i <= 10; i++) {
+      const id = (page - 1) * 10 + i
+      if (id > MAX_ID) {
+        break
+      }
+      let paddedID = id.toString()
+      while (paddedID.length < 3) {
+        paddedID = '0' + paddedID
+      }
+      const entry = pokédex[id]
+      const name = entry.caught > 0 ? pkm.getName(id) : '???'
+      content += `**#${paddedID} ${name}** (Caught: ${entry.caught})\n`
+      if (entry.caught === 0) {
+        content += '❌'
+      } else {
+        if (entry.male) {
+          content += '♂️ '
+        }
+        if (entry.female) {
+          content += '♀️ '
+        }
+        if (entry.genderless) {
+          content += '⏺️ '
+        }
+        if (entry.shiny) {
+          content += '✨'
+        }
+      }
+      content += '\n'
     }
-    const entry = pokédex[id]
-    const name = entry.caught > 0 ? pkm.getName(id) : '???'
-    content += `**#${paddedID} ${name}** (Caught: ${entry.caught})\n`
-    if (entry.caught === 0) {
-      content += '❌'
-    } else {
-      if (entry.male) {
-        content += '♂️ '
-      }
-      if (entry.female) {
-        content += '♀️ '
-      }
-      if (entry.genderless) {
-        content += '⏺️ '
-      }
-      if (entry.shiny) {
-        content += '✨'
-      }
-    }
-    content += '\n'
-  }
-  message.channel.send(content)
+    message.channel.send(content)
+  })
 }
 
 function resolveCatchAttempt (message) {
@@ -153,22 +175,24 @@ function getSpawnChannel (message) {
 }
 
 function recordCatch (author, spawn) {
-  if (!pokédexes[author.id]) {
-    pokédexes[author.id] = new Array(1000).fill(undefined).map((_, i) => {
-      return { 
-        caught: 0,
-        male: false,
-        female: false,
-        genderless: false,
-        shiny: false
-      }
-    })
+  const entryRef = db.collection('pokedexes').doc(author.id).collection('entries').doc(spawn.id.toString())
+  entryRef.get().then(doc => {
+    const entry = doc.exists ? doc.data() : emptyEntry()
+    entry.caught++
+    entry[spawn.gender] = true
+    entry.shiny = entry.shiny || spawn.shiny
+    entryRef.set(entry)
+  })
+}
+
+function emptyEntry() {
+  return {
+    caught: 0,
+    male: false,
+    female: false,
+    genderless: false,
+    shiny: false
   }
-  const pokédex = pokédexes[author.id]
-  const entry = pokédex[spawn.id]
-  entry.caught++
-  entry[spawn.gender] = true
-  entry.shiny = entry.shiny || spawn.shiny
 }
 
 client.on('ready', () => {
