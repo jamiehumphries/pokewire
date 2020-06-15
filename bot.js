@@ -16,8 +16,8 @@ const SPAWN_CHANNEL = 'pokemon-dungeon'
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
 const MAX_ID = +process.env.MAX_ID || 151
 
-const pokédexes = {}
-let currentSpawn = null
+let currentSpawnsByGuild = {}
+let scheduledSpawnByGuild = {}
 
 firebase.initializeApp({
   apiKey: process.env.FIREBASE_API_KEY,
@@ -41,12 +41,12 @@ client.on('message', message => {
   } else if (isPokédexRequest(message)) {
     sendPokédex(message)
   } else if (Math.random() < SPAWN_PROBABILITY) {
-    spawnPokémon(message)
+    spawnPokémon(message.guild)
   }
 })
 
 function isCatchAttempt (message) {
-  const spawnChannel = getSpawnChannel(message)
+  const spawnChannel = getSpawnChannel(message.guild)
   if (!spawnChannel) {
     return false
   }
@@ -117,6 +117,7 @@ function resolveCatchAttempt (message) {
   if (!isCatchAttempt(message)) {
     return
   }
+  const currentSpawn = currentSpawnsByGuild[message.guild.id]
   if (!currentSpawn || !currentSpawn.name) {
     message.reply('there’s nothing to catch!')
     return
@@ -131,8 +132,8 @@ function resolveCatchAttempt (message) {
       reply += ' ✨'
     }
     recordCatch(message.author, currentSpawn)
-    currentSpawn = undefined
     message.channel.send(reply)
+    currentSpawnsByGuild[message.guild.id] = undefined
   } else {
     message.reply('that’s the not the name of this Pokémon!')
   }
@@ -156,22 +157,30 @@ function isCaseInsensitiveMatch (attempt, name) {
   return attempt.toLowerCase() === name.toLowerCase()
 }
 
-function spawnPokémon (message) {
+function spawnPokémon (guild) {
   const spawn = randomSpawn(MAX_ID)
   const file = getSpriteURL(spawn)
   let content = '**A wild Pokémon appeared!**'
   if (spawn.shiny) {
     content += ' ✨'
   }
-  currentSpawn = spawn
-  const channel = getSpawnChannel(message)
+  const channel = getSpawnChannel(guild)
   if (channel) {
     channel.send(content, { files: [file] })
   }
+  currentSpawnsByGuild[guild.id] = spawn
+  if (!scheduledSpawnByGuild[guild.id]) {
+    scheduledSpawnByGuild[guild.id] = true
+    const minutesUntilNextSpawn = 30 + (Math.random() * 30)
+    setTimeout(() => {
+      scheduledSpawnByGuild[guild.id] = false
+      spawnPokémon(guild)
+    }, minutesUntilNextSpawn * 60 * 1000)
+  }
 }
 
-function getSpawnChannel (message) {
-  return message.guild.channels.cache.find(channel => channel.name === SPAWN_CHANNEL)
+function getSpawnChannel (guild) {
+  return guild.channels.cache.find(channel => channel.name === SPAWN_CHANNEL)
 }
 
 function recordCatch (author, spawn) {
@@ -195,8 +204,13 @@ function emptyEntry() {
   }
 }
 
+client.on('guildCreate', guild => {
+  spawnPokémon(guild)
+})
+
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`)
+  client.guilds.cache.each(guild => spawnPokémon(guild))
 })
 
 module.exports = client
