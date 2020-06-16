@@ -1,6 +1,12 @@
 const { hasGenderDifference } = require('./genders')
 
-function getSpriteURL (spawn) {
+require('./typdef')
+
+/**
+ * @param {Spawn} spawn
+ * @returns {string}
+ */
+function getSprite (spawn) {
   const spriteParts = []
   if (spawn.gender === 'female' && hasGenderDifference(spawn.id)) {
     spriteParts.push('female')
@@ -14,5 +20,5 @@ function getSpriteURL (spawn) {
 }
 
 module.exports = {
-  getSpriteURL
+  getSprite
 }

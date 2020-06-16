@@ -1,15 +1,20 @@
-const _ = require('lodash')
 const pkm = require('pokemon')
 
 const { randomGender } = require('./genders')
 
+require('./typdef')
+
 const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.02
 
-function randomSpawn (maxID) {
-  const id = Math.floor(Math.random() * maxID + 1)
+/**
+ * @param {number} maxId
+ * @returns {Spawn}
+ */
+function randomSpawn (maxId) {
+  const id = Math.floor(Math.random() * maxId) + 1
   if (id === 132) {
     // Re-roll if Ditto until special handling is in place.
-    return randomSpawn(maxID)
+    return randomSpawn(maxId)
   }
   const name = pkm.getName(id)
   const gender = randomGender(id)
