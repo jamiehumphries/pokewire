@@ -3,6 +3,7 @@ const firebase = require('@firebase/app').default
 require('@firebase/firestore')
 const pkm = require('pokemon')
 
+const aliases = require('./aliases')
 const { randomSpawn } = require('./spawns')
 const { getSprite } = require('./sprites')
 
@@ -10,6 +11,9 @@ require('./typdef')
 
 const MAX_ID = +process.env.MAX_ID || 151
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
+
+const DEX_PAGE_SIZE = 10
+const totalDexPages = Math.ceil(MAX_ID / DEX_PAGE_SIZE)
 
 const client = new Discord.Client()
 
@@ -20,10 +24,11 @@ const currentSpawnsByGuild = {}
 const db = firebase.firestore()
 
 client.on('message', message => {
-  if (message.author.id === client.user.id) {
+  if (ignore(message.guild)) {
     return
   }
-  if (ignore(message.guild)) {
+  if (message.author.id === client.user.id) {
+    // Message posted by this bot.
     return
   }
   if (isDexRequest(message)) {
@@ -33,6 +38,41 @@ client.on('message', message => {
   } else if (Math.random() < SPAWN_PROBABILITY) {
     spawnPokémon(message.guild)
   }
+})
+
+client.on('messageReactionAdd', (reaction, user) => {
+  const { message, emoji } = reaction
+  const { guild, author, content, mentions } = message
+  if (ignore(guild)) {
+    return
+  }
+  if (user.id === client.user.id) {
+    // Emoji added by this bot.
+    return
+  }
+  if ((author.id !== client.user.id) || !content.includes('Pokédex')) {
+    // Not Pokédex message.
+    return
+  }
+  reaction.users.remove(user).then(() => {
+    if (!mentions.users.has(user.id)) {
+      // Not the reactor's Pokédex.
+      return
+    }
+    const pageMatch = content.match(/page (\d+) of/)
+    if (!pageMatch) {
+      return
+    }
+    const page = parseInt(pageMatch[1])
+    const emojiString = emoji.toString()
+    if (emojiString === '⬅') {
+      const previousPage = page === 1 ? totalDexPages : page - 1
+      getDexPage(guild, user, previousPage).then(content => message.edit(content)).catch(error)
+    } else if (emojiString === '➡') {
+      const nextPage = page === totalDexPages ? 1 : page + 1
+      getDexPage(guild, user, nextPage).then(content => message.edit(content)).catch(error)
+    }
+  })
 })
 
 client.on('guildCreate', guild => {
@@ -76,11 +116,74 @@ function isCatchAttempt (message) {
  */
 function sendDex (message) {
   const { guild, author } = message
-  const dex = getDexRef(guild, author)
-  dex.get().then(snapshot => {
+  const page = parseRequestedDexPage(message)
+  getDexPage(guild, author, page)
+    .then(content => {
+      if (content) {
+        message.channel.send(content)
+          .then(message => message.react('⬅'))
+          .then(reaction => reaction.message.react('➡'))
+          .catch(error)
+      } else {
+        message.reply('you haven’t caught any Pokémon yet!')
+          .catch(error)
+      }
+    }).catch(error)
+}
+
+/**
+ * @param {Discord.Message} message
+ * @returns {number}
+ */
+function parseRequestedDexPage (message) {
+  const { content } = message
+  let match = null
+  if ((match = content.match(/^dex p(\d+)$/))) {
+    const page = parseInt(match[1])
+    return page <= totalDexPages ? page : 1
+  }
+  let id = null
+  if ((match = content.match(/^dex (\d+)$/))) {
+    id = parseInt(match[1])
+  } else if ((match = content.match(/^dex (.+)$/))) {
+    id = getPokémonId(match[1])
+  }
+  if (!id) {
+    return 1
+  }
+  return id <= MAX_ID ? Math.ceil(id / DEX_PAGE_SIZE) : 1
+}
+
+/**
+ * @param {string} name
+ * @returns {number}
+ */
+function getPokémonId (name) {
+  // Transform name to Title Case.
+  // e.g. 'mr. mime' becomes 'Mr. Mime'.
+  name = name.split(' ')
+    .filter(part => !!part)
+    .map(part => part[0].toUpperCase() + part.substring(1).toLowerCase())
+    .join(' ')
+  try {
+    return pkm.getId(name)
+  } catch {
+    const matchedAlias = Object.keys(aliases).find(id => aliases[parseInt(id)].includes(name))
+    return matchedAlias ? parseInt(matchedAlias) : null
+  }
+}
+
+/**
+ * @param {Discord.Guild} guild
+ * @param {Discord.User} user
+ * @param {number} page
+ * @returns {Promise<string>}
+ */
+function getDexPage (guild, user, page) {
+  const dex = getDexRef(guild, user)
+  return dex.get().then(snapshot => {
     if (snapshot.empty) {
-      message.reply('you haven’t caught any Pokémon yet!').catch(error)
-      return
+      return null
     }
     const dex = new Array(MAX_ID + 1).fill(undefined).map(() => emptyEntry())
     snapshot.forEach(doc => {
@@ -89,14 +192,11 @@ function sendDex (message) {
         dex[id] = doc.data()
       }
     })
-    const pageMatch = message.content.match(/^dex p(\d+)$/)
-    const page = pageMatch === null ? 1 : parseInt(pageMatch[1])
     const caught = dex.filter(entry => entry.caught > 0).length
-    const totalPages = Math.ceil(MAX_ID / 10)
-    let content = `**<@${author.id}>’s Pokédex** (page ${page} of ${totalPages})\n` +
+    let content = `**<@${user.id}>’s Pokédex** (page ${page} of ${totalDexPages})\n` +
       `**Caught: ${caught} / ${MAX_ID}**\n\n`
-    for (let i = 1; i <= 10; i++) {
-      const id = (page - 1) * 10 + i
+    for (let i = 1; i <= DEX_PAGE_SIZE; i++) {
+      const id = (page - 1) * DEX_PAGE_SIZE + i
       if (id > MAX_ID) {
         break
       }
@@ -125,7 +225,7 @@ function sendDex (message) {
       }
       content += '\n'
     }
-    message.channel.send(content).catch(error)
+    return content
   })
 }
 
@@ -171,15 +271,8 @@ function isCorrect (attempt, spawn) {
   if (isCaseInsensitiveMatch(attempt, spawn.name)) {
     return true
   }
-  switch (spawn.id) {
-    case 29:
-    case 32:
-      return isCaseInsensitiveMatch(attempt, 'Nidoran')
-    case 83:
-      return isCaseInsensitiveMatch(attempt, 'Farfetch\'d')
-    default:
-      return false
-  }
+  const spawnAliases = aliases[spawn.id] || []
+  return spawnAliases.some(alias => isCaseInsensitiveMatch(attempt, alias))
 }
 
 /**
