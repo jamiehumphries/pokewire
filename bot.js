@@ -135,7 +135,7 @@ function resolveCatchAttempt (message) {
     message.channel.send(reply)
     currentSpawnsByGuild[message.guild.id] = undefined
   } else {
-    message.reply('that’s the not the name of this Pokémon!')
+    message.reply('that’s not the name of this Pokémon!')
   }
 }
 
