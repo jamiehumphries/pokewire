@@ -198,7 +198,8 @@ function getDexPage (guild, user, page) {
     for (let i = 1; i <= DEX_PAGE_SIZE; i++) {
       const id = (page - 1) * DEX_PAGE_SIZE + i
       if (id > MAX_ID) {
-        break
+        content += '.\n.\n'
+        continue
       }
       let paddedId = id.toString()
       while (paddedId.length < 3) {
