@@ -18,3 +18,16 @@
  * @property {boolean} genderless
  * @property {boolean} shiny
  */
+
+/**
+ * @typedef DexEntryEmojis
+ * @property {string} registered
+ * @property {string} unregistered
+ */
+
+/**
+ * @typedef GuildDexEmojis
+ * @property {DexEntryEmojis} male
+ * @property {DexEntryEmojis} female
+ * @property {DexEntryEmojis} genderless
+ */

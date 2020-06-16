@@ -4,6 +4,7 @@ require('@firebase/firestore')
 const pkm = require('pokemon')
 
 const aliases = require('./aliases')
+const { hasMaleForm, hasFemaleForm, hasGenderlessForm } = require('./genders')
 const { randomSpawn } = require('./spawns')
 const { getSprite } = require('./sprites')
 
@@ -59,7 +60,7 @@ client.on('messageReactionAdd', (reaction, user) => {
       // Not the reactor's Pokédex.
       return
     }
-    const pageMatch = content.match(/page (\d+) of/)
+    const pageMatch = content.match(/Page (\d+) of/)
     if (!pageMatch) {
       return
     }
@@ -138,14 +139,14 @@ function sendDex (message) {
 function parseRequestedDexPage (message) {
   const { content } = message
   let match = null
-  if ((match = content.match(/^dex p(\d+)$/))) {
+  if ((match = content.match(/^dex p(\d+)$/i))) {
     const page = parseInt(match[1])
     return page <= totalDexPages ? page : 1
   }
   let id = null
-  if ((match = content.match(/^dex (\d+)$/))) {
+  if ((match = content.match(/^dex (\d+)$/i))) {
     id = parseInt(match[1])
-  } else if ((match = content.match(/^dex (.+)$/))) {
+  } else if ((match = content.match(/^dex (.+)$/i))) {
     id = getPokémonId(match[1])
   }
   if (!id) {
@@ -193,8 +194,9 @@ function getDexPage (guild, user, page) {
       }
     })
     const caught = dex.filter(entry => entry.caught > 0).length
-    let content = `**<@${user.id}>’s Pokédex** (page ${page} of ${totalDexPages})\n` +
-      `**Caught: ${caught} / ${MAX_ID}**\n\n`
+    let content = `**<@${user.id}>’s Pokédex**\n` +
+      `**${caught} / ${MAX_ID} (${Math.floor(caught * 1000 / MAX_ID) / 10}%)**\n\n`
+    const emojis = getGuildDexEmojis(guild)
     for (let i = 1; i <= DEX_PAGE_SIZE; i++) {
       const id = (page - 1) * DEX_PAGE_SIZE + i
       if (id > MAX_ID) {
@@ -205,29 +207,65 @@ function getDexPage (guild, user, page) {
       while (paddedId.length < 3) {
         paddedId = '0' + paddedId
       }
-      const { caught, male, female, genderless, shiny } = dex[id]
-      const name = caught > 0 ? pkm.getName(id) : '???'
-      content += `**#${paddedId} ${name}** (Caught: ${caught})\n`
-      if (caught === 0) {
-        content += '❌'
-      } else {
-        if (male) {
-          content += '♂️ '
-        }
-        if (female) {
-          content += '♀️ '
-        }
-        if (genderless) {
-          content += '⏺️ '
-        }
-        if (shiny) {
-          content += '✨'
-        }
-      }
+      const entry = dex[id]
+      const name = entry.caught > 0 ? pkm.getName(id) : '???'
+      content += `**#${paddedId} ${name}** (Caught: ${entry.caught})\n`
+      content += getDexEntryEmojis(id, entry, emojis)
       content += '\n'
     }
+    content += '\n'
+    content += `Page ${page} of ${totalDexPages}`
     return content
   })
+}
+
+/**
+ * @param {Discord.Guild} guild
+ * @returns {GuildDexEmojis}
+ */
+function getGuildDexEmojis (guild) {
+  function find (name) {
+    const emoji = guild.emojis.cache.find(emoji => emoji.name === name)
+    return emoji ? `<:${emoji.identifier}>` : undefined
+  }
+  return {
+    male: {
+      registered: find('pokewire_male') || '♂',
+      unregistered: find('pokewire_male_dot') || '❌'
+    },
+    female: {
+      registered: find('pokewire_female') || '♀',
+      unregistered: find('pokewire_female_dot') || '❌'
+    },
+    genderless: {
+      registered: find('pokewire_genderless') || '⏺',
+      unregistered: find('pokewire_genderless_dot') || '❌'
+    }
+  }
+}
+
+/**
+ * @param {number} id
+ * @param {DexEntry} entry
+ * @param {GuildDexEmojis} emojis
+ * @returns {string}
+ */
+function getDexEntryEmojis (id, entry, emojis) {
+  const { male, female, genderless, shiny } = entry
+  const entryEmojis = []
+  if (hasMaleForm(id)) {
+    entryEmojis.push(male ? emojis.male.registered : emojis.male.unregistered)
+  }
+  if (hasFemaleForm(id)) {
+    entryEmojis.push(female ? emojis.female.registered : emojis.female.unregistered)
+  }
+  if (hasGenderlessForm(id)) {
+    entryEmojis.push(genderless ? emojis.genderless.registered : emojis.genderless.unregistered)
+  }
+  if (shiny) {
+    entryEmojis.push('✨')
+  }
+  return entryEmojis.join(' ')
 }
 
 /**
@@ -246,10 +284,8 @@ function resolveCatchAttempt (message) {
   }
   const attempt = content.substring('catch'.length).trim()
   if (isCorrect(attempt, spawn)) {
-    let reply = `Gotcha! <@${author.id}> caught ${spawn.name}!`
-    if (spawn.gender !== 'genderless') {
-      reply += spawn.gender === 'male' ? ' ♂️' : ' ♀️'
-    }
+    const emojis = getGuildDexEmojis(guild)
+    let reply = `Gotcha! <@${author.id}> caught ${spawn.name}! ${emojis[spawn.gender].registered}`
     if (spawn.shiny) {
       reply += ' ✨'
     }

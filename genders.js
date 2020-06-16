@@ -114,6 +114,33 @@ function hasGenderDifference (id) {
 
 /**
  * @param {number} id
+ * @returns {boolean}
+ */
+function hasMaleForm (id) {
+  const femaleRate = FEMALE_RATES[id]
+  return femaleRate < 8
+}
+
+/**
+ * @param {number} id
+ * @returns {boolean}
+ */
+function hasFemaleForm (id) {
+  const femaleRate = FEMALE_RATES[id]
+  return femaleRate > 0 && femaleRate <= 8
+}
+
+/**
+ * @param {number} id
+ * @returns {boolean}
+ */
+function hasGenderlessForm (id) {
+  const femaleRate = FEMALE_RATES[id]
+  return femaleRate === 9
+}
+
+/**
+ * @param {number} id
  * @returns {Gender}
  */
 function randomGender (id) {
@@ -126,5 +153,8 @@ function randomGender (id) {
 
 module.exports = {
   hasGenderDifference,
+  hasMaleForm,
+  hasFemaleForm,
+  hasGenderlessForm,
   randomGender
 }
