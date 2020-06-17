@@ -43,8 +43,11 @@ client.on('message', message => {
 
 client.on('messageReactionAdd', (reaction, user) => {
   const { message, emoji } = reaction
-  const { guild, author, content, mentions } = message
+  const { guild, author, content, channel, mentions } = message
   if (ignore(guild)) {
+    return
+  }
+  if (!canManageDexPaging(channel)) {
     return
   }
   if (user.id === client.user.id) {
@@ -56,22 +59,19 @@ client.on('messageReactionAdd', (reaction, user) => {
     return
   }
   reaction.users.remove(user).then(() => {
-    if (!mentions.users.has(user.id)) {
-      // Not the reactor's Pokédex.
-      return
-    }
     const pageMatch = content.match(/Page (\d+) of/)
     if (!pageMatch) {
       return
     }
     const page = parseInt(pageMatch[1])
     const emojiString = emoji.toString()
+    const dexUser = mentions.users.first()
     if (emojiString === '⬅') {
       const previousPage = page === 1 ? totalDexPages : page - 1
-      getDexPage(guild, user, previousPage).then(content => message.edit(content)).catch(error)
+      getDexPage(guild, dexUser, previousPage).then(content => message.edit(content)).catch(error)
     } else if (emojiString === '➡') {
       const nextPage = page === totalDexPages ? 1 : page + 1
-      getDexPage(guild, user, nextPage).then(content => message.edit(content)).catch(error)
+      getDexPage(guild, dexUser, nextPage).then(content => message.edit(content)).catch(error)
     }
   })
 })
@@ -80,12 +80,12 @@ client.on('guildCreate', guild => {
   if (ignore(guild)) {
     return
   }
-  doScheduledSpawn(guild)
+  initGuild(guild)
 })
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`)
-  client.guilds.cache.filter(guild => !ignore(guild)).each(doScheduledSpawn)
+  client.guilds.cache.filter(guild => !ignore(guild)).each(initGuild)
 })
 
 /**
@@ -116,18 +116,20 @@ function isCatchAttempt (message) {
  * @returns {void}
  */
 function sendDex (message) {
-  const { guild, author } = message
+  const { guild, author, channel } = message
   const page = parseRequestedDexPage(message)
   getDexPage(guild, author, page)
     .then(content => {
       if (content) {
-        message.channel.send(content)
-          .then(message => message.react('⬅'))
-          .then(reaction => reaction.message.react('➡'))
-          .catch(error)
+        let promise = channel.send(content)
+        if (canManageDexPaging(channel)) {
+          promise = promise
+            .then(message => message.react('⬅'))
+            .then(reaction => reaction.message.react('➡'))
+        }
+        promise.catch(error)
       } else {
-        message.reply('you haven’t caught any Pokémon yet!')
-          .catch(error)
+        message.reply('you haven’t caught any Pokémon yet!').catch(error)
       }
     }).catch(error)
 }
@@ -332,6 +334,20 @@ function isCaseInsensitiveMatch (attempt, name) {
  * @param {Discord.Guild} guild
  * @returns {void}
  */
+function initGuild (guild) {
+  guild.channels.cache.each(channel => {
+    if (channel.type === 'text' && canManageDexPaging(channel)) {
+      // Fetch old dex messages to listen for paging reactions.
+      channel.messages.fetch()
+    }
+  })
+  doScheduledSpawn(guild)
+}
+
+/**
+ * @param {Discord.Guild} guild
+ * @returns {void}
+ */
 function doScheduledSpawn (guild) {
   spawnPokémon(guild)
   const minutesUntilNextSpawn = 30 + (Math.random() * 30)
@@ -408,6 +424,15 @@ function emptyEntry () {
     genderless: false,
     shiny: false
   }
+}
+
+/**
+ * @param {Discord.TextChannel} channel
+ * @returns {boolean}
+ */
+function canManageDexPaging (channel) {
+  const permissions = channel.permissionsFor(client.user)
+  return permissions.has('ADD_REACTIONS') && permissions.has('MANAGE_MESSAGES')
 }
 
 /**
