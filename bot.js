@@ -338,7 +338,7 @@ function initGuild (guild) {
   guild.channels.cache.each(channel => {
     if (channel.type === 'text' && canManageDexPaging(channel)) {
       // Fetch old dex messages to listen for paging reactions.
-      channel.messages.fetch()
+      channel.messages.fetch({ limit: 100 })
     }
   })
   doScheduledSpawn(guild)
