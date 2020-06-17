@@ -291,9 +291,16 @@ function resolveCatchAttempt (message) {
     }
     currentSpawnsByGuild[guild.id] = undefined
     recordCatch(guild, author, spawn)
-    channel.send(reply).then(() => {
+    const options = {}
+    if (spawn.disguise) {
+      // Reveal disguised Pokémon.
+      options.files = [getSprite(spawn)]
+    }
+    channel.send(reply, options).then(() => {
       console.log(`[${guild.name}] ${author.username} caught ${spawn.name}`)
     }).catch(error)
+  } else if (spawn.disguise && isCorrect(attempt, spawn.disguise)) {
+    channel.send(`Oh? That does look like ${spawn.disguise.name} but it isn’t one! What else could it be, <@${author.id}>?`)
   } else {
     message.reply('that’s not the name of this Pokémon!').catch(error)
   }
@@ -340,7 +347,7 @@ function doScheduledSpawn (guild) {
 function spawnPokémon (guild) {
   const spawn = randomSpawn(MAX_ID)
   const channel = getSpawnChannel(guild)
-  const file = getSprite(spawn)
+  const file = getSprite(spawn.disguise || spawn)
   let content = '**A wild Pokémon appeared!**'
   if (spawn.shiny) {
     content += ' ✨'

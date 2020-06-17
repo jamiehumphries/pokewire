@@ -4,7 +4,7 @@ const { randomGender } = require('./genders')
 
 require('./typdef')
 
-const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.02
+const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.01
 
 /**
  * @param {number} maxId
@@ -12,14 +12,18 @@ const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.02
  */
 function randomSpawn (maxId) {
   const id = Math.floor(Math.random() * maxId) + 1
-  if (id === 132) {
-    // Re-roll if Ditto until special handling is in place.
-    return randomSpawn(maxId)
-  }
   const name = pkm.getName(id)
   const gender = randomGender(id)
   const shiny = Math.random() < SHINY_PROBABILITY
-  return { id, name, gender, shiny }
+  const spawn = { id, name, gender, shiny }
+  if (id === 132) {
+    // Special handling for Ditto.
+    do {
+      spawn.disguise = randomSpawn(maxId)
+      spawn.disguise.shiny = spawn.shiny // Prevent false Shiny Ditto.
+    } while (spawn.disguise.id === 132) // Prevent Ditto disguised as Ditto.
+  }
+  return spawn
 }
 
 module.exports = {

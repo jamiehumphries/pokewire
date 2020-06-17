@@ -8,6 +8,7 @@
  * @property {string} name
  * @property {Gender} gender
  * @property {boolean} shiny
+ * @property {Spawn} [disguise]
  */
 
 /**
