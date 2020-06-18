@@ -1,10 +1,10 @@
 const Discord = require('discord.js')
 const firebase = require('@firebase/app').default
 require('@firebase/firestore')
-const pkm = require('pokemon')
 
 const aliases = require('./aliases')
 const { hasMaleForm, hasFemaleForm, hasGenderlessForm } = require('./genders')
+const { getId, getName } = require('./pokemon')
 const { randomSpawn } = require('./spawns')
 const { getSprite } = require('./sprites')
 
@@ -149,31 +149,12 @@ function parseRequestedDexPage (message) {
   if ((match = content.match(/^dex (\d+)$/i))) {
     id = parseInt(match[1])
   } else if ((match = content.match(/^dex (.+)$/i))) {
-    id = getPokémonId(match[1])
+    id = getId(match[1])
   }
   if (!id) {
     return 1
   }
   return id <= MAX_ID ? Math.ceil(id / DEX_PAGE_SIZE) : 1
-}
-
-/**
- * @param {string} name
- * @returns {number}
- */
-function getPokémonId (name) {
-  // Transform name to Title Case.
-  // e.g. 'mr. mime' becomes 'Mr. Mime'.
-  name = name.split(' ')
-    .filter(part => !!part)
-    .map(part => part[0].toUpperCase() + part.substring(1).toLowerCase())
-    .join(' ')
-  try {
-    return pkm.getId(name)
-  } catch {
-    const matchedAlias = Object.keys(aliases).find(id => aliases[parseInt(id)].includes(name))
-    return matchedAlias ? parseInt(matchedAlias) : null
-  }
 }
 
 /**
@@ -210,7 +191,7 @@ function getDexPage (guild, user, page) {
         paddedId = '0' + paddedId
       }
       const entry = dex[id]
-      const name = entry.caught > 0 ? pkm.getName(id) : '???'
+      const name = entry.caught > 0 ? getName(id) : '???'
       content += `**#${paddedId} ${name}** (Caught: ${entry.caught})\n`
       content += getDexEntryEmojis(id, entry, emojis)
       content += '\n'

@@ -1,6 +1,5 @@
-const pkm = require('pokemon')
-
 const { randomGender } = require('./genders')
+const { getName } = require('./pokemon')
 
 require('./typdef')
 
@@ -12,7 +11,7 @@ const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.01
  */
 function randomSpawn (maxId) {
   const id = Math.floor(Math.random() * maxId) + 1
-  const name = pkm.getName(id)
+  const name = getName(id)
   const gender = randomGender(id)
   const shiny = Math.random() < SHINY_PROBABILITY
   const spawn = { id, name, gender, shiny }
