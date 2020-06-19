@@ -172,7 +172,7 @@ function getDexPage (guild, user, page) {
     const dex = new Array(MAX_ID + 1).fill(undefined).map(() => emptyEntry())
     snapshot.forEach(doc => {
       const id = parseInt(doc.id)
-      if (id < MAX_ID) {
+      if (id <= MAX_ID) {
         dex[id] = doc.data()
       }
     })
