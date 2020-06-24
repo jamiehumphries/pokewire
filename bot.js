@@ -177,8 +177,10 @@ function getDexPage (guild, user, page) {
       }
     })
     const caught = dex.filter(entry => entry.caught > 0).length
+    const percentage = Math.floor(caught * 1000 / MAX_ID) / 10
+    const award = getDexAward(percentage)
     let content = `**<@${user.id}>’s Pokédex**\n` +
-      `**${caught} / ${MAX_ID} (${Math.floor(caught * 1000 / MAX_ID) / 10}%)**\n\n`
+      `**${caught} / ${MAX_ID} (${percentage}%)** ${award}\n\n`
     const emojis = getGuildDexEmojis(guild)
     for (let i = 1; i <= DEX_PAGE_SIZE; i++) {
       const id = (page - 1) * DEX_PAGE_SIZE + i
@@ -225,6 +227,27 @@ function getGuildDexEmojis (guild) {
       unregistered: find('pokewire_genderless_dot') || '❌'
     }
   }
+}
+
+/**
+ *
+ * @param {number} percentage
+ * @returns {string}
+ */
+function getDexAward (percentage) {
+  if (percentage >= 100) {
+    return '🏆'
+  }
+  if (percentage >= 90) {
+    return '🥇'
+  }
+  if (percentage >= 70) {
+    return '🥈'
+  }
+  if (percentage >= 50) {
+    return '🥉'
+  }
+  return ''
 }
 
 /**
