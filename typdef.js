@@ -32,3 +32,10 @@
  * @property {DexEntryEmojis} female
  * @property {DexEntryEmojis} genderless
  */
+
+/**
+ * @typedef Generation
+ * @property {string} name
+ * @property {number} minId
+ * @property {number} maxId
+ */

@@ -3,6 +3,7 @@ const firebase = require('@firebase/app').default
 require('@firebase/firestore')
 
 const aliases = require('./aliases')
+const generations = require('./generations')
 const { hasMaleForm, hasFemaleForm, hasGenderlessForm } = require('./genders')
 const { getId, getName } = require('./pokemon')
 const { randomSpawn } = require('./spawns')
@@ -14,7 +15,7 @@ const MAX_ID = +process.env.MAX_ID || 151
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
 
 const DEX_PAGE_SIZE = 10
-const totalDexPages = Math.ceil(MAX_ID / DEX_PAGE_SIZE)
+const totalDexPages = getPageOfId(MAX_ID)
 
 const client = new Discord.Client()
 
@@ -151,10 +152,37 @@ function parseRequestedDexPage (message) {
   } else if ((match = content.match(/^dex (.+)$/i))) {
     id = getId(match[1])
   }
-  if (!id) {
+  if (!id || id > MAX_ID) {
     return 1
   }
-  return id <= MAX_ID ? Math.ceil(id / DEX_PAGE_SIZE) : 1
+  return getPageOfId(id)
+}
+
+/**
+ * @param {number} id
+ * @returns {number}
+ */
+function getPageOfId (id) {
+  const previousGenerationPages = getNumberOfPagesBeforeGenerationById(id)
+  const currentGeneration = getGenerationForId(id)
+  const pageOfCurrentGeneration = Math.ceil((id - currentGeneration.minId + 1) / DEX_PAGE_SIZE)
+  return previousGenerationPages + pageOfCurrentGeneration
+}
+
+/**
+ * @param {number} id
+ * @returns {number}
+ */
+function getNumberOfPagesBeforeGenerationById (id) {
+  return generations.filter(gen => gen.maxId < id)
+    .reduce((pages, gen) => pages + Math.ceil((gen.maxId - gen.minId + 1) / DEX_PAGE_SIZE), 0)
+}
+/**
+ * @param {number} id
+ * @returns {Generation}
+ */
+function getGenerationForId (id) {
+  return generations.find(gen => gen.minId <= id && gen.maxId >= id)
 }
 
 /**
@@ -176,16 +204,16 @@ function getDexPage (guild, user, page) {
         dex[id] = doc.data()
       }
     })
-    const caught = dex.filter(entry => entry.caught > 0).length
-    const percentage = Math.floor(caught * 1000 / MAX_ID) / 10
-    const award = getDexAward(percentage)
-    let content = `**<@${user.id}>’s Pokédex**\n` +
-      `**${caught} / ${MAX_ID} (${percentage}%)** ${award}\n\n`
     const emojis = getGuildDexEmojis(guild)
-    for (let i = 1; i <= DEX_PAGE_SIZE; i++) {
-      const id = (page - 1) * DEX_PAGE_SIZE + i
-      if (id > MAX_ID) {
-        content += '.\n.\n'
+    const generation = getGenerationForDexPage(page)
+    const previousGenerationPages = getNumberOfPagesBeforeGenerationById(generation.minId)
+    const pageOfGeneration = page - previousGenerationPages
+    let content = `${getDexCompletionSummary(dex, `<@${user.id}>’s Pokédex`, 1, MAX_ID)}\n\n` +
+      `${getDexCompletionSummary(dex, generation.name, generation.minId, Math.min(generation.maxId, MAX_ID))}\n\n`
+    for (let i = 0; i < DEX_PAGE_SIZE; i++) {
+      const id = (pageOfGeneration - 1) * DEX_PAGE_SIZE + generation.minId + i
+      if (id > generation.maxId || id > MAX_ID) {
+        content += '\n\n'
         continue
       }
       let paddedId = id.toString()
@@ -230,7 +258,32 @@ function getGuildDexEmojis (guild) {
 }
 
 /**
- *
+ * @param {number} page
+ * @returns {Generation}
+ */
+function getGenerationForDexPage (page) {
+  const generationsStartingOnPageOrBefore = generations.filter(gen => getNumberOfPagesBeforeGenerationById(gen.minId) < page)
+  return generationsStartingOnPageOrBefore[generationsStartingOnPageOrBefore.length - 1]
+}
+
+/**
+ * @param {DexEntry[]} dex
+ * @param {number} minId
+ * @param {number} maxId
+ * @returns {string}
+ */
+function getDexCompletionSummary (dex, title, minId, maxId) {
+  const dexRange = dex.slice(minId, maxId + 1)
+  const caught = dexRange.filter(entry => entry.caught > 0).length
+  const total = dexRange.length
+  const percentage = caught * 100 / total
+  const award = getDexAward(percentage)
+  const roundedDownPercentage = (Math.floor(percentage * 10) / 10).toFixed(1)
+  return `**${title}** ${award}\n` +
+    `**${caught} / ${total} (${roundedDownPercentage}%)**`
+}
+
+/**
  * @param {number} percentage
  * @returns {string}
  */
