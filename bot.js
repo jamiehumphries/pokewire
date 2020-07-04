@@ -354,7 +354,7 @@ function initGuild (guild) {
  */
 function doScheduledSpawn (guild) {
   spawnPokémon(guild)
-  const minutesUntilNextSpawn = 30 + (Math.random() * 30)
+  const minutesUntilNextSpawn = 1 + (Math.random() * 59)
   setTimeout(() => {
     doScheduledSpawn(guild)
   }, minutesUntilNextSpawn * 60 * 1000)
