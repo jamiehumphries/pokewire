@@ -16,7 +16,7 @@ function getSprite (spawn) {
   }
   spriteParts.push(spawn.id)
   const sprite = spriteParts.join('/')
-  return `https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/sprites/pokemon/${sprite}.png`
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${sprite}.png`
 }
 
 module.exports = {
