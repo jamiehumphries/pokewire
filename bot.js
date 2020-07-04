@@ -67,13 +67,27 @@ client.on('messageReactionAdd', (reaction, user) => {
     const page = parseInt(pageMatch[1])
     const emojiString = emoji.toString()
     const dexUser = mentions.users.first()
+    let targetPage
     if (emojiString === '⬅') {
-      const previousPage = page === 1 ? totalDexPages : page - 1
-      getDexPage(guild, dexUser, previousPage).then(content => message.edit(content)).catch(error)
+      targetPage = page === 1 ? totalDexPages : page - 1
     } else if (emojiString === '➡') {
-      const nextPage = page === totalDexPages ? 1 : page + 1
-      getDexPage(guild, dexUser, nextPage).then(content => message.edit(content)).catch(error)
+      targetPage = page === totalDexPages ? 1 : page + 1
+    } else if (emojiString === '⏪') {
+      const generation = getGenerationForDexPage(page)
+      const firstPageOfGeneration = getPageOfId(generation.minId)
+      if (page === firstPageOfGeneration) {
+        const previousPage = page === 1 ? totalDexPages : page - 1
+        const previousGeneration = getGenerationForDexPage(previousPage)
+        targetPage = getPageOfId(previousGeneration.minId)
+      } else {
+        targetPage = firstPageOfGeneration
+      }
+    } else if (emojiString === '⏩') {
+      const generation = getGenerationForDexPage(page)
+      const lastPageOfGeneration = getPageOfId(generation.maxId)
+      targetPage = lastPageOfGeneration === totalDexPages ? 1 : lastPageOfGeneration + 1
     }
+    getDexPage(guild, dexUser, targetPage).then(content => message.edit(content)).catch(error)
   })
 })
 
@@ -125,8 +139,10 @@ function sendDex (message) {
         let promise = channel.send(content)
         if (canManageDexPaging(channel)) {
           promise = promise
-            .then(message => message.react('⬅'))
+            .then(message => message.react('⏪'))
+            .then(reaction => reaction.message.react('⬅'))
             .then(reaction => reaction.message.react('➡'))
+            .then(reaction => reaction.message.react('⏩'))
         }
         promise.catch(error)
       } else {
