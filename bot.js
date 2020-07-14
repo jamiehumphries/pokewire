@@ -124,7 +124,7 @@ function isCatchAttempt (message) {
   if (message.channel !== spawnChannel) {
     return false
   }
-  return message.content.toLowerCase().startsWith('catch')
+  return message.content.toLowerCase().startsWith('catch ')
 }
 
 /**
