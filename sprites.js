@@ -24,7 +24,7 @@ function getSprite (spawn) {
   filename += '.png'
   spriteParts.push(filename)
   const sprite = spriteParts.join('/')
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${sprite}`
+  return `./sprites/${sprite}`
 }
 
 module.exports = {
