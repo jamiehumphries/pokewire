@@ -34,8 +34,12 @@
  */
 
 /**
+ * @typedef {('Kanto'|'Johto'|'Hoenn'|'Sinnoh'|'Unova'|'Kalos'|'Alola'|'Unknown'|'Galar')} Region
+ */
+
+/**
  * @typedef Generation
- * @property {string} name
+ * @property {Region} name
  * @property {number} minId
  * @property {number} maxId
  */

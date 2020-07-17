@@ -11,8 +11,10 @@ const { getSprite } = require('./sprites')
 
 require('./typdef')
 
-const MAX_GENERATION = +process.env.MAX_GENERATION || 3
-const MAX_ID = generations[MAX_GENERATION - 1].maxId
+/** @type {Region} */
+const MAX_REGION = process.env.MAX_REGION || 'Kanto'
+
+const MAX_ID = generations.find(gen => gen.name === MAX_REGION).maxId
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
 
 const DEX_PAGE_SIZE = 10
@@ -139,7 +141,7 @@ function sendDex (message) {
       if (content) {
         let promise = channel.send(content)
         if (canManageDexPaging(channel)) {
-          const pagingButtons = MAX_GENERATION > 1 ? ['⏪', '⬅', '➡', '⏩'] : ['⬅', '➡']
+          const pagingButtons = MAX_REGION !== 'Kanto' ? ['⏪', '⬅', '➡', '⏩'] : ['⬅', '➡']
           const firstButton = pagingButtons.shift()
           promise = promise.then(message => message.react(firstButton))
           for (const button of pagingButtons) {
@@ -227,7 +229,7 @@ function getDexPage (guild, user, page) {
     const previousGenerationPages = getNumberOfPagesBeforeGenerationById(generation.minId)
     const pageOfGeneration = page - previousGenerationPages
     let content = `${getDexCompletionSummary(dex, `<@${user.id}>’s Pokédex`, 1, MAX_ID)}\n\n`
-    if (MAX_GENERATION > 1) {
+    if (MAX_REGION !== 'Kanto') {
       content += `${getDexCompletionSummary(dex, generation.name, generation.minId, generation.maxId)}\n\n`
     }
     for (let i = 0; i < DEX_PAGE_SIZE; i++) {
