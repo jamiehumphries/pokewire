@@ -10,7 +10,7 @@ const SHINY_PROBABILITY = +process.env.SHINY_PROBABILITY || 0.01
  * @returns {Spawn}
  */
 function randomSpawn (maxId) {
-  const id = Math.floor(Math.random() * maxId) + 1
+  const id = getChristmassyId() // Math.floor(Math.random() * maxId) + 1
   const name = getName(id)
   const gender = randomGender(id)
   const shiny = Math.random() < SHINY_PROBABILITY
@@ -23,6 +23,23 @@ function randomSpawn (maxId) {
     } while (spawn.disguise.id === 132) // Prevent Ditto disguised as Ditto.
   }
   return spawn
+}
+
+/**
+ * @returns {number}
+ */
+function getChristmassyId () {
+  const ids = [
+    131, // Lapras
+    225, // Delibird
+    234, // Stantler
+    361, // Snorunt
+    459, // Snover
+    460, // Abonmasnow
+    478 // Froslass
+  ]
+  const randomIndex = Math.floor(Math.random() * ids.length)
+  return ids[randomIndex]
 }
 
 module.exports = {
