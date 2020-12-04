@@ -429,7 +429,7 @@ function initGuild (guild) {
  */
 function doScheduledSpawn (guild) {
   spawnPokémon(guild)
-  const minutesUntilNextSpawn = 1 + (Math.random() * 59)
+  const minutesUntilNextSpawn = 1 + (Math.random() * 9) // Increased spawn time for Christmas lunch.
   setTimeout(() => {
     doScheduledSpawn(guild)
   }, minutesUntilNextSpawn * 60 * 1000)
