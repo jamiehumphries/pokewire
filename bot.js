@@ -16,6 +16,7 @@ const MAX_REGION = process.env.MAX_REGION || 'Kanto'
 
 const MAX_ID = generations.find(gen => gen.name === MAX_REGION).maxId
 const SPAWN_PROBABILITY = +process.env.SPAWN_PROBABILITY || 0.1
+const MAX_SPAWN_INTERVAL_MINUTES = +process.env.MAX_SPAWN_INTERVAL_MINUTES || 60
 
 const DEX_PAGE_SIZE = 10
 const totalDexPages = getPageOfId(MAX_ID)
@@ -429,7 +430,7 @@ function initGuild (guild) {
  */
 function doScheduledSpawn (guild) {
   spawnPokémon(guild)
-  const minutesUntilNextSpawn = 1 + (Math.random() * 59) // Increased spawn time for Christmas lunch.
+  const minutesUntilNextSpawn = 1 + (Math.random() * (MAX_SPAWN_INTERVAL_MINUTES - 1))
   setTimeout(() => {
     doScheduledSpawn(guild)
   }, minutesUntilNextSpawn * 60 * 1000)
